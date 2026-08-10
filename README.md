@@ -39,15 +39,25 @@ migrations/     D1 のスキーマ
 | パス                       | 認証                         | 用途                       |
 | -------------------------- | ---------------------------- | -------------------------- |
 | `/`, `/new`, `/s/:id/edit` | 必須                         | 一覧・編集 UI              |
-| `/api/stashes/*`           | 必須                         | CRUD                       |
-| `/s/:id`                   | **Bypass 可**                | 閲覧ページ（SPA）          |
-| `/api/public/stashes/:id`  | **Bypass 可**                | 閲覧ページが読む API       |
-| `/raw/:id[/:filename]`     | **Bypass 可**                | 生テキスト                 |
-| `/assets/*`, `/favicon.svg`| **Bypass 可**                | SPA のバンドル             |
+| `/api/stashes/*`, `/api/me`| 必須                         | CRUD・identity             |
+| `/s/:id`                   | **Bypass**                   | 閲覧ページ（SPA）          |
+| `/api/public/stashes/:id`  | **Bypass**                   | 閲覧ページが読む API       |
+| `/raw/:id[/:filename]`     | **Bypass**                   | 生テキスト                 |
+| `/assets/*`, `/favicon.svg`| **Bypass**                   | SPA のバンドル             |
 
-「Bypass 可」の経路は Access を通さずに到達しうるため、Worker 側でも
+Bypass 経路は Access を通さずに到達しうるため、Worker 側でも
 `visibility = 'public'` の stash 以外は 404 を返して二重に防いでいる。private な stash の
 存在自体も匿名クライアントには漏らさない。
+
+**Bypass されたリクエストに Cloudflare は identity token を付けない。** つまり
+ログイン済みのユーザーであっても `/api/public/*` 上では匿名として扱われる。そのため
+閲覧ページは、セッションが確立していれば保護側の `/api/stashes/:id` を使い、
+匿名のときだけ `/api/public/stashes/:id` にフォールバックする（`ViewPage.svelte`）。
+
+Access アプリケーションはホスト全体を守るものと、上記 Bypass パスをまとめた
+`destinations` を持つものの 2 つ。より具体的なパスを持つ後者が先に評価される。
+なお Worker の workers.dev ルートは Access の保護外になるため `workers_dev: false` で
+必ず無効化すること。
 
 ## ローカル開発
 
@@ -127,18 +137,19 @@ Zero Trust ダッシュボード > Access > Applications で **Self-hosted** ア
 - Application domain: `stsh.example.com`（Worker の Custom Domain、または `*.workers.dev`）
 - Policy: Allow / Emails = 自分のアドレス
 
-次に、閲覧系を素通しにする Bypass アプリケーションを **パスごとに** 作る。
-Access はより具体的なパスを優先するため、以下は上のアプリより先に評価される。
+次に、閲覧系を素通しにする Bypass アプリケーションを 1 つ作る。`destinations` に
+パスを列挙でき、Access はより具体的なパスを優先するため、これが上のアプリより先に
+評価される。
 
-| Application domain / path         | Policy          |
-| --------------------------------- | --------------- |
-| `stsh.example.com/s`              | Bypass Everyone |
-| `stsh.example.com/raw`            | Bypass Everyone |
-| `stsh.example.com/api/public`     | Bypass Everyone |
-| `stsh.example.com/assets`         | Bypass Everyone |
-| `stsh.example.com/favicon.svg`    | Bypass Everyone |
+- Policy: Bypass / Everyone
+- Destinations:
+  - `stsh.example.com/s/*`
+  - `stsh.example.com/raw/*`
+  - `stsh.example.com/api/public/*`
+  - `stsh.example.com/assets/*`
+  - `stsh.example.com/favicon.svg`
 
-公開リンクを一切使わない運用なら、この Bypass アプリ群は作らなくてよい。その場合
+公開リンクを一切使わない運用なら、この Bypass アプリは作らなくてよい。その場合
 `visibility` は単なるラベルとして残る。
 
 ### 6. Access の値を secret として登録

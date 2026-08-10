@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { Stash } from '../../shared/types'
   import FileCard from '../components/FileCard.svelte'
-  import { ApiError, deleteStash, fetchPublicStash } from '../lib/api'
+  import { ApiError, deleteStash, fetchPublicStash, fetchStash } from '../lib/api'
   import { formatBytes, formatRelative, formatTimestamp } from '../lib/format'
   import { link, navigate } from '../lib/router.svelte'
-  import { session } from '../lib/session.svelte'
+  import { session, sessionReady } from '../lib/session.svelte'
 
   interface Props {
     id: string
@@ -20,12 +20,33 @@
 
   const totalSize = $derived(stash?.files.reduce((sum, file) => sum + file.size, 0) ?? 0)
 
+  /**
+   * `/api/public/*` sits behind an Access Bypass policy, so Cloudflare attaches
+   * no identity token to those requests — an authenticated owner would look
+   * anonymous there and be denied their own private stashes. Signed-in users
+   * therefore go through the protected endpoint instead.
+   */
+  async function loadStash(stashId: string): Promise<Stash> {
+    await sessionReady
+
+    if (session().me.authenticated) {
+      try {
+        return await fetchStash(stashId)
+      } catch (cause) {
+        // Fall through to the public endpoint only when the session is gone.
+        if (!(cause instanceof ApiError) || cause.status !== 401) throw cause
+      }
+    }
+
+    return await fetchPublicStash(stashId)
+  }
+
   $effect(() => {
     let cancelled = false
     loading = true
     error = null
 
-    fetchPublicStash(id)
+    loadStash(id)
       .then((result) => {
         if (!cancelled) stash = result
       })

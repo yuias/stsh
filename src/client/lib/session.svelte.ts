@@ -7,9 +7,10 @@ const state = $state<{ me: MeResponse; loaded: boolean }>({ me: ANONYMOUS, loade
 
 /**
  * Resolves the current identity once per page load. On Access-bypassed pages
- * this request is expected to fail, which simply means "anonymous reader".
+ * `/api/me` is unreachable and the request fails, which simply means
+ * "anonymous reader".
  */
-export async function loadSession(): Promise<void> {
+async function load(): Promise<void> {
   try {
     state.me = await fetchMe()
   } catch {
@@ -18,6 +19,9 @@ export async function loadSession(): Promise<void> {
     state.loaded = true
   }
 }
+
+/** Settles once the identity lookup has finished, successfully or not. */
+export const sessionReady: Promise<void> = load()
 
 export function session(): { me: MeResponse; loaded: boolean } {
   return state
