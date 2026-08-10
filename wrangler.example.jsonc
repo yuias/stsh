@@ -10,6 +10,12 @@
   "observability": {
     "enabled": true
   },
+  // The Access application protects the custom domain only, so the workers.dev
+  // route must stay off — it would be an unauthenticated way into the app.
+  "workers_dev": false,
+  // FILL IN: the hostname to serve from. The zone must be on this account;
+  // wrangler creates the DNS record and certificate on deploy.
+  "routes": [{ "pattern": "stsh.example.com", "custom_domain": true }],
   "assets": {
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
