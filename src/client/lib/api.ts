@@ -21,19 +21,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     })
   } catch {
     // A cross-origin redirect to the Cloudflare Access login page surfaces here.
-    throw new ApiError(0, 'network', 'サーバーに到達できませんでした。ログインし直してください。')
+    throw new ApiError(0, 'network', 'the server could not be reached')
   }
 
   if (response.status === 204) return undefined as T
 
   const isJson = response.headers.get('content-type')?.includes('application/json') ?? false
   if (!isJson) {
+    // Access answers an expired session with a redirect to its login page.
     throw new ApiError(
       response.status,
-      'unexpected_response',
-      response.redirected
-        ? '認証セッションが切れています。ページを再読み込みしてください。'
-        : `予期しないレスポンス (${response.status})`,
+      response.redirected ? 'session_expired' : 'unexpected_response',
+      `expected JSON, got ${response.status}`,
     )
   }
 
@@ -41,7 +40,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const error = body as { error?: string; message?: string }
-    throw new ApiError(response.status, error.error ?? 'error', error.message ?? 'リクエストに失敗しました')
+    throw new ApiError(response.status, error.error ?? 'error', error.message ?? 'the request failed')
   }
 
   return body as T

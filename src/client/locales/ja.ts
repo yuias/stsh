@@ -1,0 +1,78 @@
+import type { Messages } from './en'
+
+export const ja: Messages = {
+  meta: {
+    localeName: '日本語',
+    htmlLang: 'ja',
+  },
+  nav: {
+    new: '新規',
+    readOnly: '読み取り専用',
+    dev: 'dev',
+    language: '言語',
+    auto: '自動',
+  },
+  common: {
+    loading: '読み込み中…',
+    delete: '削除',
+    cancel: 'キャンセル',
+    files: (count) => `${count} ファイル`,
+    lines: (count) => `${count} 行`,
+  },
+  visibility: {
+    private: '非公開',
+    public: '公開',
+    all: 'すべて',
+  },
+  list: {
+    searchPlaceholder: 'タイトル・説明・ファイル名で検索',
+    empty: 'まだ何もありません。',
+    emptyAction: '最初の stash を作る',
+    loadMore: 'もっと読む',
+    loadFailed: '一覧を取得できませんでした。',
+    overflow: (count) => `他 ${count}`,
+  },
+  view: {
+    updated: (relative) => `${relative}に更新`,
+    edit: '編集',
+    confirmDelete: (name) => `${name} を削除しますか？`,
+    deleteFailed: '削除に失敗しました。',
+    loadFailed: '読み込みに失敗しました。',
+  },
+  editor: {
+    titlePlaceholder: 'タイトル',
+    descriptionPlaceholder: '説明（任意）',
+    publicLabel: '公開 — Access の Bypass 経路からリンクを共有できます',
+    addFile: 'ファイルを追加',
+    importFiles: 'ファイルを読み込む',
+    filenamePlaceholder: 'filename.ext',
+    contentPlaceholder: 'ここに貼り付け（ファイルのドロップも可）',
+    create: '作成',
+    update: '更新',
+    saving: '保存中…',
+    needsOneFile: '少なくとも 1 つのファイルが必要です。',
+    fileTooLarge: (filename, limit) => `${filename} が 1 ファイルあたりの上限 ${limit} を超えています。`,
+    saveFailed: '保存に失敗しました。',
+    loadFailed: '読み込みに失敗しました。',
+    characters: (formattedCount) => `${formattedCount} 文字`,
+    limitHint: (size) => `1 ファイル最大 ${size}`,
+  },
+  file: {
+    source: 'ソース',
+    preview: 'プレビュー',
+    copy: 'コピー',
+    copied: 'コピーしました',
+    raw: 'Raw',
+    download: 'ダウンロード',
+    truncated: (size) => `表示は先頭 ${size} まで。全体は Raw から取得してください。`,
+  },
+  notFound: {
+    message: 'そのページはありません。',
+    back: '一覧へ',
+  },
+  errors: {
+    network: 'サーバーに到達できませんでした。ログインし直してください。',
+    sessionExpired: '認証セッションが切れています。ページを再読み込みしてください。',
+    unexpected: (status) => `予期しないレスポンス (${status})`,
+  },
+}

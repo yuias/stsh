@@ -2,6 +2,7 @@
   import { LIMITS } from '../../shared/types'
   import { highlightToHtml } from '../lib/highlight'
   import { formatBytes } from '../lib/format'
+  import { messages } from '../lib/i18n.svelte'
 
   interface Props {
     content: string
@@ -9,6 +10,8 @@
   }
 
   const { content, language }: Props = $props()
+
+  const m = $derived(messages())
 
   /**
    * Very large files are truncated for display; the full text stays one click
@@ -53,9 +56,7 @@
 {/if}
 
 {#if truncated}
-  <p class="truncation muted">
-    表示は先頭 {formatBytes(LIMITS.previewThresholdBytes)} まで。全体は Raw から取得してください。
-  </p>
+  <p class="truncation muted">{m.file.truncated(formatBytes(LIMITS.previewThresholdBytes))}</p>
 {/if}
 
 <style>

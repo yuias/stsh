@@ -3,6 +3,7 @@
   import { isMarkdown } from '../../shared/languages'
   import { rawUrl } from '../lib/api'
   import { countLines, formatBytes } from '../lib/format'
+  import { messages } from '../lib/i18n.svelte'
   import CodeBlock from './CodeBlock.svelte'
   import MarkdownBlock from './MarkdownBlock.svelte'
 
@@ -13,6 +14,7 @@
 
   const { stashId, file }: Props = $props()
 
+  const m = $derived(messages())
   const markdown = $derived(isMarkdown(file.language))
   let renderMarkdown = $state(true)
   let copied = $state(false)
@@ -32,16 +34,16 @@
   <header>
     <strong class="name">{file.filename}</strong>
     <span class="badge">{file.language}</span>
-    <span class="muted meta">{countLines(file.content)} lines · {formatBytes(file.size)}</span>
+    <span class="muted meta">{m.common.lines(countLines(file.content))} · {formatBytes(file.size)}</span>
     <span class="spacer"></span>
     {#if markdown}
       <button class="ghost" onclick={() => (renderMarkdown = !renderMarkdown)}>
-        {renderMarkdown ? 'Source' : 'Preview'}
+        {renderMarkdown ? m.file.source : m.file.preview}
       </button>
     {/if}
-    <button class="ghost" onclick={copy}>{copied ? 'Copied' : 'Copy'}</button>
-    <a class="button ghost" href={rawUrl(stashId, file.filename)} target="_blank" rel="noreferrer">Raw</a>
-    <a class="button ghost" href={rawUrl(stashId, file.filename, true)}>Download</a>
+    <button class="ghost" onclick={copy}>{copied ? m.file.copied : m.file.copy}</button>
+    <a class="button ghost" href={rawUrl(stashId, file.filename)} target="_blank" rel="noreferrer">{m.file.raw}</a>
+    <a class="button ghost" href={rawUrl(stashId, file.filename, true)}>{m.file.download}</a>
   </header>
 
   {#if markdown && renderMarkdown}

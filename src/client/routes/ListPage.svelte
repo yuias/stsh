@@ -1,23 +1,32 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import type { Messages } from '../locales/en'
   import type { StashSummary, Visibility } from '../../shared/types'
-  import { ApiError, listStashes } from '../lib/api'
+  import { listStashes } from '../lib/api'
+  import { describeError } from '../lib/errors'
   import { formatBytes, formatRelative, formatTimestamp } from '../lib/format'
+  import { messages } from '../lib/i18n.svelte'
   import { link } from '../lib/router.svelte'
+
+  const m = $derived(messages())
 
   let items = $state<StashSummary[]>([])
   let nextCursor = $state<string | null>(null)
   let query = $state('')
   let visibility = $state<Visibility | ''>('')
-  let error = $state<string | null>(null)
+  // Holding a renderer rather than a finished string keeps the message correct
+  // when the locale changes while it is on screen.
+  let failure = $state<((messages: Messages) => string) | null>(null)
   let loading = $state(false)
+
+  const error = $derived(failure?.(m) ?? null)
 
   /** Debounced so typing in the search box does not fire a request per keystroke. */
   let searchTimer: ReturnType<typeof setTimeout> | undefined
 
   async function load(cursor: string | null) {
     loading = true
-    error = null
+    failure = null
     try {
       const result = await listStashes({
         cursor,
@@ -27,7 +36,7 @@
       items = cursor ? [...items, ...result.items] : result.items
       nextCursor = result.nextCursor
     } catch (cause) {
-      error = cause instanceof ApiError ? cause.message : '一覧を取得できませんでした'
+      failure = (msgs) => describeError(cause, msgs, msgs.list.loadFailed)
     } finally {
       loading = false
     }
@@ -47,16 +56,11 @@
 </script>
 
 <div class="toolbar">
-  <input
-    type="search"
-    placeholder="タイトル・説明・ファイル名で検索"
-    bind:value={query}
-    oninput={scheduleSearch}
-  />
+  <input type="search" placeholder={m.list.searchPlaceholder} bind:value={query} oninput={scheduleSearch} />
   <select bind:value={visibility} onchange={() => void load(null)}>
-    <option value="">すべて</option>
-    <option value="private">private</option>
-    <option value="public">public</option>
+    <option value="">{m.visibility.all}</option>
+    <option value="private">{m.visibility.private}</option>
+    <option value="public">{m.visibility.public}</option>
   </select>
 </div>
 
@@ -65,7 +69,7 @@
 {/if}
 
 {#if items.length === 0 && !loading && !error}
-  <p class="muted empty">まだ何もありません。<a href="/new" use:link>最初の stash を作る</a></p>
+  <p class="muted empty">{m.list.empty} <a href="/new" use:link>{m.list.emptyAction}</a></p>
 {/if}
 
 <ul class="list">
@@ -73,7 +77,9 @@
     <li class="card entry">
       <div class="row title-row">
         <a class="title" href={`/s/${item.id}`} use:link>{item.title || item.id}</a>
-        <span class="badge" class:public={item.visibility === 'public'}>{item.visibility}</span>
+        <span class="badge" class:public={item.visibility === 'public'}>
+          {item.visibility === 'public' ? m.visibility.public : m.visibility.private}
+        </span>
       </div>
 
       {#if item.description}
@@ -85,12 +91,12 @@
           <span class="filename">{filename}</span>
         {/each}
         {#if item.filenames.length > 6}
-          <span class="muted">+{item.filenames.length - 6}</span>
+          <span class="muted">{m.list.overflow(item.filenames.length - 6)}</span>
         {/if}
       </p>
 
       <p class="muted meta">
-        {item.fileCount} files · {formatBytes(item.totalSize)} ·
+        {m.common.files(item.fileCount)} · {formatBytes(item.totalSize)} ·
         <time title={formatTimestamp(item.updatedAt)}>{formatRelative(item.updatedAt)}</time>
       </p>
     </li>
@@ -100,7 +106,7 @@
 {#if nextCursor}
   <div class="more">
     <button onclick={() => void load(nextCursor)} disabled={loading}>
-      {loading ? '読み込み中…' : 'もっと読む'}
+      {loading ? m.common.loading : m.list.loadMore}
     </button>
   </div>
 {/if}

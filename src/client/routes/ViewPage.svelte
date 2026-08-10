@@ -1,8 +1,11 @@
 <script lang="ts">
+  import type { Messages } from '../locales/en'
   import type { Stash } from '../../shared/types'
   import FileCard from '../components/FileCard.svelte'
   import { ApiError, deleteStash, fetchPublicStash, fetchStash } from '../lib/api'
+  import { describeError } from '../lib/errors'
   import { formatBytes, formatRelative, formatTimestamp } from '../lib/format'
+  import { messages } from '../lib/i18n.svelte'
   import { link, navigate } from '../lib/router.svelte'
   import { session, sessionReady } from '../lib/session.svelte'
 
@@ -12,12 +15,14 @@
 
   const { id }: Props = $props()
   const me = $derived(session())
+  const m = $derived(messages())
 
   let stash = $state<Stash | null>(null)
-  let error = $state<string | null>(null)
+  let failure = $state<((messages: Messages) => string) | null>(null)
   let loading = $state(true)
   let deleting = $state(false)
 
+  const error = $derived(failure?.(m) ?? null)
   const totalSize = $derived(stash?.files.reduce((sum, file) => sum + file.size, 0) ?? 0)
 
   /**
@@ -44,7 +49,7 @@
   $effect(() => {
     let cancelled = false
     loading = true
-    error = null
+    failure = null
 
     loadStash(id)
       .then((result) => {
@@ -52,7 +57,7 @@
       })
       .catch((cause: unknown) => {
         if (cancelled) return
-        error = cause instanceof ApiError ? cause.message : '読み込みに失敗しました'
+        failure = (msgs) => describeError(cause, msgs, msgs.view.loadFailed)
       })
       .finally(() => {
         if (!cancelled) loading = false
@@ -65,28 +70,30 @@
 
   async function remove() {
     if (!stash) return
-    if (!window.confirm(`${stash.title || stash.id} を削除しますか？`)) return
+    if (!window.confirm(m.view.confirmDelete(stash.title || stash.id))) return
 
     deleting = true
     try {
       await deleteStash(stash.id)
       navigate('/', { replace: true })
     } catch (cause) {
-      error = cause instanceof ApiError ? cause.message : '削除に失敗しました'
+      failure = (msgs) => describeError(cause, msgs, msgs.view.deleteFailed)
       deleting = false
     }
   }
 </script>
 
 {#if loading}
-  <p class="muted">読み込み中…</p>
+  <p class="muted">{m.common.loading}</p>
 {:else if error}
   <p class="notice">{error}</p>
 {:else if stash}
   <header class="head">
     <div class="row">
       <h1>{stash.title || stash.id}</h1>
-      <span class="badge" class:public={stash.visibility === 'public'}>{stash.visibility}</span>
+      <span class="badge" class:public={stash.visibility === 'public'}>
+        {stash.visibility === 'public' ? m.visibility.public : m.visibility.private}
+      </span>
     </div>
 
     {#if stash.description}
@@ -94,15 +101,15 @@
     {/if}
 
     <p class="muted meta">
-      {stash.files.length} files · {formatBytes(totalSize)} ·
-      <time title={formatTimestamp(stash.updatedAt)}>更新 {formatRelative(stash.updatedAt)}</time>
+      {m.common.files(stash.files.length)} · {formatBytes(totalSize)} ·
+      <time title={formatTimestamp(stash.updatedAt)}>{m.view.updated(formatRelative(stash.updatedAt))}</time>
       {#if stash.owner} · {stash.owner}{/if}
     </p>
 
     {#if me.me.authenticated}
       <div class="row">
-        <a class="button" href={`/s/${stash.id}/edit`} use:link>Edit</a>
-        <button class="danger" onclick={remove} disabled={deleting}>Delete</button>
+        <a class="button" href={`/s/${stash.id}/edit`} use:link>{m.view.edit}</a>
+        <button class="danger" onclick={remove} disabled={deleting}>{m.common.delete}</button>
       </div>
     {/if}
   </header>

@@ -1,9 +1,12 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte'
+  import type { Messages } from '../locales/en'
   import { SELECTABLE_LANGUAGES, detectLanguage } from '../../shared/languages'
   import { LIMITS, type StashInput, type Visibility } from '../../shared/types'
-  import { ApiError, createStash, fetchStash, updateStash } from '../lib/api'
-  import { formatBytes } from '../lib/format'
+  import { createStash, fetchStash, updateStash } from '../lib/api'
+  import { describeError } from '../lib/errors'
+  import { byteLength, formatBytes, formatNumber } from '../lib/format'
+  import { messages } from '../lib/i18n.svelte'
   import { link, navigate } from '../lib/router.svelte'
 
   interface Props {
@@ -12,6 +15,8 @@
   }
 
   const { mode, id = '' }: Props = $props()
+
+  const m = $derived(messages())
 
   interface EditorFile {
     key: number
@@ -37,14 +42,15 @@
   // `mode` never changes for a given mount, so reading it once here is safe.
   let loading = $state(untrack(() => mode) === 'edit')
   let saving = $state(false)
-  let error = $state<string | null>(null)
+  let failure = $state<((messages: Messages) => string) | null>(null)
   let dirty = $state(false)
 
+  const error = $derived(failure?.(m) ?? null)
   const active = $derived(files[activeIndex] ?? files[0])
 
   /**
    * Character counts are cheap enough to recompute per keystroke; byte counts
-   * (which need TextEncoder) are only shown after the content settles.
+   * (which need TextEncoder) are only measured when saving.
    */
   const totalCharacters = $derived(files.reduce((sum, file) => sum + file.content.length, 0))
 
@@ -74,7 +80,7 @@
       activeIndex = 0
       dirty = false
     } catch (cause) {
-      error = cause instanceof ApiError ? cause.message : '読み込みに失敗しました'
+      failure = (msgs) => describeError(cause, msgs, msgs.editor.loadFailed)
     } finally {
       loading = false
     }
@@ -134,32 +140,40 @@
   async function save() {
     if (saving) return
 
+    const kept = files.filter((file) => file.content.length > 0 || file.filename.trim().length > 0)
+
+    if (kept.length === 0) {
+      failure = (msgs) => msgs.editor.needsOneFile
+      return
+    }
+
     const payload: StashInput = {
       title,
       description,
       visibility,
-      files: files
-        .filter((file) => file.content.length > 0 || file.filename.trim().length > 0)
-        .map((file, index) => ({
-          filename: file.filename.trim() || `file${index + 1}.txt`,
-          language: file.language,
-          content: file.content,
-        })),
+      files: kept.map((file, index) => ({
+        filename: file.filename.trim() || `file${index + 1}.txt`,
+        language: file.language,
+        content: file.content,
+      })),
     }
 
-    if (payload.files.length === 0) {
-      error = '少なくとも 1 つのファイルが必要です'
+    // Checked here as well as on the Worker so the message can be localized and
+    // the oversized body never leaves the browser.
+    const tooLarge = payload.files.find((file) => byteLength(file.content) > LIMITS.maxFileBytes)
+    if (tooLarge) {
+      failure = (msgs) => msgs.editor.fileTooLarge(tooLarge.filename, formatBytes(LIMITS.maxFileBytes))
       return
     }
 
     saving = true
-    error = null
+    failure = null
     try {
       const stash = mode === 'edit' ? await updateStash(id, payload) : await createStash(payload)
       dirty = false
       navigate(`/s/${stash.id}`, { replace: mode === 'edit' })
     } catch (cause) {
-      error = cause instanceof ApiError ? cause.message : '保存に失敗しました'
+      failure = (msgs) => describeError(cause, msgs, msgs.editor.saveFailed)
     } finally {
       saving = false
     }
@@ -176,25 +190,35 @@
 <svelte:window onkeydown={onKeydown} />
 
 {#if loading}
-  <p class="muted">読み込み中…</p>
+  <p class="muted">{m.common.loading}</p>
 {:else}
   <div class="editor" ondrop={onDrop} ondragover={(event) => event.preventDefault()} role="presentation">
     <div class="meta card">
-      <input type="text" placeholder="タイトル" bind:value={title} oninput={touch} maxlength={LIMITS.maxTitleLength} />
       <input
         type="text"
-        placeholder="説明 (任意)"
+        placeholder={m.editor.titlePlaceholder}
+        bind:value={title}
+        oninput={touch}
+        maxlength={LIMITS.maxTitleLength}
+      />
+      <input
+        type="text"
+        placeholder={m.editor.descriptionPlaceholder}
         bind:value={description}
         oninput={touch}
         maxlength={LIMITS.maxDescriptionLength}
       />
       <div class="row">
         <label class="visibility">
-          <input type="checkbox" checked={visibility === 'public'} onchange={(event) => {
-            visibility = event.currentTarget.checked ? 'public' : 'private'
-            touch()
-          }} />
-          公開 (Access の Bypass 経路からリンクを共有できる)
+          <input
+            type="checkbox"
+            checked={visibility === 'public'}
+            onchange={(event) => {
+              visibility = event.currentTarget.checked ? 'public' : 'private'
+              touch()
+            }}
+          />
+          {m.editor.publicLabel}
         </label>
       </div>
     </div>
@@ -209,9 +233,10 @@
           {file.filename || `file${index + 1}`}
         </button>
       {/each}
-      <button class="tab add" onclick={addFile} title="ファイルを追加">＋</button>
-      <label class="tab add" title="ファイルを読み込む">
+      <button class="tab add" onclick={addFile} title={m.editor.addFile} aria-label={m.editor.addFile}>＋</button>
+      <label class="tab add" title={m.editor.importFiles}>
         ⇪
+        <span class="visually-hidden">{m.editor.importFiles}</span>
         <input type="file" multiple onchange={(event) => void importFiles(event.currentTarget.files)} />
       </label>
     </div>
@@ -222,7 +247,7 @@
           <input
             class="filename"
             type="text"
-            placeholder="filename.ext"
+            placeholder={m.editor.filenamePlaceholder}
             bind:value={active.filename}
             oninput={() => onFilenameInput(active)}
           />
@@ -237,7 +262,7 @@
               <option value={language}>{language}</option>
             {/each}
           </select>
-          <button class="danger" onclick={() => removeFile(activeIndex)}>削除</button>
+          <button class="danger" onclick={() => removeFile(activeIndex)}>{m.common.delete}</button>
         </header>
 
         <textarea
@@ -245,7 +270,7 @@
           spellcheck="false"
           autocapitalize="off"
           autocomplete="off"
-          placeholder="ここに貼り付け（ファイルのドロップも可）"
+          placeholder={m.editor.contentPlaceholder}
           bind:value={active.content}
           oninput={touch}
         ></textarea>
@@ -254,15 +279,15 @@
 
     <div class="actions">
       <span class="muted counts">
-        {files.length} files · {totalCharacters.toLocaleString('ja-JP')} chars
-        <span class="limit">/ 1ファイル最大 {formatBytes(LIMITS.maxFileBytes)}</span>
+        {m.common.files(files.length)} · {m.editor.characters(formatNumber(totalCharacters))}
+        <span class="limit">/ {m.editor.limitHint(formatBytes(LIMITS.maxFileBytes))}</span>
       </span>
       <span class="spacer"></span>
       {#if mode === 'edit'}
-        <a class="button" href={`/s/${id}`} use:link>キャンセル</a>
+        <a class="button" href={`/s/${id}`} use:link>{m.common.cancel}</a>
       {/if}
       <button class="primary" onclick={save} disabled={saving}>
-        {saving ? '保存中…' : mode === 'edit' ? '更新' : '作成'}
+        {saving ? m.editor.saving : mode === 'edit' ? m.editor.update : m.editor.create}
       </button>
     </div>
   </div>
@@ -326,6 +351,15 @@
     inset: 0;
     opacity: 0;
     cursor: pointer;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .pane {
