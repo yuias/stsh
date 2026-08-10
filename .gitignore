@@ -145,3 +145,9 @@ vite.config.ts.timestamp-*
 
 # Claude Code
 .claude/
+
+# Cloudflare Workers
+.wrangler/
+.dev.vars
+.dev.vars.*
+worker-configuration.d.ts
