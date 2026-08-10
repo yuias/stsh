@@ -53,13 +53,15 @@ migrations/     D1 のスキーマ
 
 ```sh
 pnpm install
-pnpm db:migrate     # ローカル D1 (.wrangler/state) にスキーマ適用
-pnpm dev            # http://localhost:5173
+cp .dev.vars.example .dev.vars   # 中身はダミーで良い（後述）
+pnpm db:migrate                  # ローカル D1 (.wrangler/state) にスキーマ適用
+pnpm dev                         # http://localhost:5173
 ```
 
 ローカルでは Access が前段にいないため、`import.meta.env.DEV` が真のときだけ
 固定の開発ユーザー (`dev@localhost`) として認証済み扱いになる。この分岐は本番ビルドから
-消えるので、設定漏れで本番が素通しになることはない（Access 変数が空なら 500 で落ちる）。
+消えるので、設定漏れで本番が素通しになることはない（Access の値が未設定なら 500 で落ちる）。
+ローカルでは JWT 検証自体を通らないので、`.dev.vars` の中身はダミーでよい。
 
 匿名アクセス（Access Bypass 経路）の挙動を試したいときは `x-dev-anonymous: 1` を付ける。
 
@@ -90,6 +92,10 @@ pnpm exec wrangler d1 create stsh-db
 ```
 
 出力された `database_id` を `wrangler.jsonc` の `d1_databases[0].database_id` に貼る。
+
+これは秘密情報ではなく、アカウントの認証情報なしには何もできない単なるリソース ID なので
+コミットしてよい（Cloudflare の公式テンプレートも同様）。wrangler が設定ファイル内で
+環境変数の展開をサポートしないため、外出しすると全コマンドに `--config` を渡す必要が生じる。
 
 ### 3. 本番 D1 にマイグレーション適用
 
@@ -128,25 +134,28 @@ Access はより具体的なパスを優先するため、以下は上のアプ�
 公開リンクを一切使わない運用なら、この Bypass アプリ群は作らなくてよい。その場合
 `visibility` は単なるラベルとして残る。
 
-### 6. Access の変数を Worker に渡す
+### 6. Access の値を secret として登録
 
-保護アプリケーションの **Overview** から AUD タグを、Zero Trust の設定からチーム名を取得し、
-`wrangler.jsonc` の `vars` を埋めて再デプロイする。
-
-```jsonc
-"vars": {
-  "ACCESS_TEAM_DOMAIN": "https://<team-name>.cloudflareaccess.com",
-  "ACCESS_POLICY_AUD": "<AUD tag>",
-  "ALLOWED_EMAILS": "you@example.com"
-}
-```
+保護アプリケーションの **Overview** から AUD タグを、Zero Trust の設定からチーム名を取得する。
 
 ```sh
+pnpm exec wrangler secret put ACCESS_TEAM_DOMAIN   # https://<team-name>.cloudflareaccess.com
+pnpm exec wrangler secret put ACCESS_POLICY_AUD    # AUD tag
+pnpm exec wrangler secret put ALLOWED_EMAILS       # you@example.com（カンマ区切りで複数可）
 pnpm deploy
 ```
 
-`ALLOWED_EMAILS` は空でも動く（その場合 Access が通した ID をすべて受け入れる）。
-Access のポリシー側で絞っているなら省略してよい二重チェック。
+これらは環境固有の値なのでリポジトリには置かず、`wrangler.jsonc` には
+`secrets.required` として**名前だけ**を宣言している。名前を宣言しておくことで
+`wrangler types` の型生成が通り、未登録のまま `wrangler deploy` すると
+不足している secret 名を挙げて失敗する。
+
+`ALLOWED_EMAILS` は Access のポリシー側で既に絞っているなら二重チェックにあたる
+（コード上は空文字なら全許可）。ただし secret 未登録だとデプロイが通らないので、
+絞らない場合も自分のアドレスを入れておくのが素直。
+
+> plaintext の `vars` は `wrangler deploy` のたびに config の内容で上書きされるが、
+> secret はデプロイでは削除されない。ダッシュボードで値を管理するのは避けること。
 
 ### 7. 動作確認
 

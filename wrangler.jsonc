@@ -23,12 +23,10 @@
       "migrations_dir": "migrations"
     }
   ],
-  "vars": {
-    // https://<team-name>.cloudflareaccess.com  (no trailing slash)
-    "ACCESS_TEAM_DOMAIN": "",
-    // The Access application's AUD tag.
-    "ACCESS_POLICY_AUD": "",
-    // Optional allowlist; when empty, any identity Access lets through is accepted.
-    "ALLOWED_EMAILS": ""
+  // Declared by name only. Values live in `.dev.vars` locally and are set with
+  // `wrangler secret put` for deployments, so no environment-specific value is
+  // ever committed. See README for what each one holds.
+  "secrets": {
+    "required": ["ACCESS_TEAM_DOMAIN", "ACCESS_POLICY_AUD", "ALLOWED_EMAILS"]
   }
 }
