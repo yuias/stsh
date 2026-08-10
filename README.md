@@ -53,10 +53,15 @@ migrations/     D1 のスキーマ
 
 ```sh
 pnpm install
-cp .dev.vars.example .dev.vars   # 中身はダミーで良い（後述）
-pnpm db:migrate                  # ローカル D1 (.wrangler/state) にスキーマ適用
-pnpm dev                         # http://localhost:5173
+pnpm setup        # テンプレートから wrangler.jsonc と .dev.vars を作る
+pnpm db:migrate   # ローカル D1 (.wrangler/state) にスキーマ適用
+pnpm dev          # http://localhost:5173
 ```
+
+`pnpm setup` が作る 2 ファイルはどちらも環境固有の値を持つため git 管理外で、
+テンプレート（`wrangler.example.jsonc` / `.dev.vars.example`）だけがコミットされている。
+既存ファイルは上書きしないので、いつ実行しても安全。
+ローカル開発はテンプレートの値のままで動く。
 
 ローカルでは Access が前段にいないため、`import.meta.env.DEV` が真のときだけ
 固定の開発ユーザー (`dev@localhost`) として認証済み扱いになる。この分岐は本番ビルドから
@@ -92,10 +97,12 @@ pnpm exec wrangler d1 create stsh-db
 ```
 
 出力された `database_id` を `wrangler.jsonc` の `d1_databases[0].database_id` に貼る。
+このファイルは git 管理外なので、値がリポジトリに入ることはない。
 
-これは秘密情報ではなく、アカウントの認証情報なしには何もできない単なるリソース ID なので
-コミットしてよい（Cloudflare の公式テンプレートも同様）。wrangler が設定ファイル内で
-環境変数の展開をサポートしないため、外出しすると全コマンドに `--config` を渡す必要が生じる。
+> `wrangler.jsonc` を編集したとき、環境固有でない変更（compatibility_date、
+> ルーティング、バインディング追加など）は `wrangler.example.jsonc` にも反映すること。
+> wrangler は設定ファイル内での環境変数展開をサポートしないため、
+> 1 ファイルで両立させることはできない。
 
 ### 3. 本番 D1 にマイグレーション適用
 
