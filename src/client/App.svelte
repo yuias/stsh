@@ -1,5 +1,6 @@
 <script lang="ts">
   import LocaleSwitcher from './components/LocaleSwitcher.svelte'
+  import ThemeSwitcher from './components/ThemeSwitcher.svelte'
   import { messages } from './lib/i18n.svelte'
   import { currentRoute, link } from './lib/router.svelte'
   import { session } from './lib/session.svelte'
@@ -20,6 +21,7 @@
       <a class="button" href="/new" use:link>{m.nav.new}</a>
     {/if}
     <div class="spacer"></div>
+    <ThemeSwitcher />
     <LocaleSwitcher />
     {#if me.loaded}
       <span class="identity">

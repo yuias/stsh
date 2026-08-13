@@ -19,6 +19,9 @@ export const en = {
     dev: 'dev',
     language: 'Language',
     auto: 'Auto',
+    theme: 'Theme',
+    themeLight: 'Light',
+    themeDark: 'Dark',
   },
   common: {
     loading: 'Loading…',

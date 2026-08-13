@@ -11,6 +11,9 @@ export const ja: Messages = {
     dev: 'dev',
     language: '言語',
     auto: '自動',
+    theme: 'テーマ',
+    themeLight: 'ライト',
+    themeDark: 'ダーク',
   },
   common: {
     loading: '読み込み中…',

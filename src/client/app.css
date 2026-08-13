@@ -1,13 +1,18 @@
+/*
+ * Every colour carries both schemes via `light-dark()`, which reads the used
+ * `color-scheme`. So the whole palette follows from that one property, and a
+ * manual choice is just a matter of pinning it (see `[data-theme]` below).
+ */
 :root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --surface-muted: #f0f2f5;
-  --border: #d8dde4;
-  --text: #1b2028;
-  --text-muted: #616b7a;
-  --accent: #0b6bcb;
-  --accent-contrast: #ffffff;
-  --danger: #c02b2b;
+  --bg: light-dark(#f6f7f9, #10141a);
+  --surface: light-dark(#ffffff, #171c24);
+  --surface-muted: light-dark(#f0f2f5, #1e242e);
+  --border: light-dark(#d8dde4, #2c333f);
+  --text: light-dark(#1b2028, #e3e8ef);
+  --text-muted: light-dark(#616b7a, #97a1b0);
+  --accent: light-dark(#0b6bcb, #4da3ff);
+  --accent-contrast: light-dark(#ffffff, #0b1017);
+  --danger: light-dark(#c02b2b, #ff6b6b);
   --radius: 10px;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
@@ -15,18 +20,13 @@
   font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #10141a;
-    --surface: #171c24;
-    --surface-muted: #1e242e;
-    --border: #2c333f;
-    --text: #e3e8ef;
-    --text-muted: #97a1b0;
-    --accent: #4da3ff;
-    --accent-contrast: #0b1017;
-    --danger: #ff6b6b;
-  }
+/* Written by the theme switcher; absent means "follow the OS". */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 * {
@@ -219,16 +219,8 @@ pre.plain {
 /* Shiki emits both themes as custom properties; pick one per color scheme. */
 .shiki,
 .shiki span {
-  color: var(--shiki-light);
-  background-color: var(--shiki-light-bg);
-}
-
-@media (prefers-color-scheme: dark) {
-  .shiki,
-  .shiki span {
-    color: var(--shiki-dark);
-    background-color: var(--shiki-dark-bg);
-  }
+  color: light-dark(var(--shiki-light), var(--shiki-dark));
+  background-color: light-dark(var(--shiki-light-bg), var(--shiki-dark-bg));
 }
 
 /* ---------- markdown ---------- */
