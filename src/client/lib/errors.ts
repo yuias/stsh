@@ -17,6 +17,10 @@ export function describeError(cause: unknown, messages: Messages, fallback: stri
       return messages.errors.network
     case 'session_expired':
       return messages.errors.sessionExpired
+    case 'session_stale':
+      return messages.errors.sessionStale
+    case 'unauthorized':
+      return messages.errors.unauthorized
     case 'unexpected_response':
       return messages.errors.unexpected(cause.status)
     default:

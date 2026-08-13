@@ -16,6 +16,7 @@ export const ja: Messages = {
     themeDark: 'ダーク',
     signIn: 'ログイン',
     signOut: 'ログアウト',
+    sessionStale: 'セッション無効',
   },
   common: {
     loading: '読み込み中…',
@@ -78,6 +79,8 @@ export const ja: Messages = {
   errors: {
     network: 'サーバーに到達できませんでした。ログインし直してください。',
     sessionExpired: '認証セッションが切れています。ページを再読み込みしてください。',
+    sessionStale: 'セッションが受け付けられません。ログアウトしてから入り直してください。',
+    unauthorized: 'ログインが必要です。',
     unexpected: (status) => `予期しないレスポンス (${status})`,
   },
 }

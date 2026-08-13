@@ -11,5 +11,7 @@ export interface HonoEnv {
   Variables: {
     /** Set by `withIdentity`; null when the request is anonymous. */
     identity: Identity | null
+    /** Set by `withIdentity`; true when a token was presented but refused. */
+    authStale: boolean
   }
 }

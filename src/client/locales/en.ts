@@ -24,6 +24,7 @@ export const en = {
     themeDark: 'Dark',
     signIn: 'Sign in',
     signOut: 'Sign out',
+    sessionStale: 'Session invalid',
   },
   common: {
     loading: 'Loading…',
@@ -86,7 +87,11 @@ export const en = {
   },
   errors: {
     network: 'Could not reach the server. Try signing in again.',
+    /** Access bounced the request to its login page: reloading starts a login. */
     sessionExpired: 'Your session has expired. Reload the page.',
+    /** Access let a token through that we refuse; only signing out clears it. */
+    sessionStale: 'Your session is no longer accepted. Sign out, then sign in again.',
+    unauthorized: 'Sign in to continue.',
     unexpected: (status: number) => `Unexpected response (${status})`,
   },
 }

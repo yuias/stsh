@@ -90,6 +90,18 @@ Access は最後に成功した認証方法で identity を評価するため、
 どちらの方法で入っても Worker が見るのは JWT の `email` claim なので、
 `ALLOWED_EMAILS` や stash の所有者はログイン方法に依存しない。
 
+### 受け付けられないセッション
+
+**Access が通すのに Worker が拒む**中間状態がある。署名鍵のローテーションや
+team domain のリネーム後、ブラウザに残った cookie は Access から見れば有効なまま
+なので `/` は普通に配信されるが、token の `iss` は古いままなので `auth.ts` の
+issuer 照合で落ちる。結果、Access 的にはログイン済み・アプリ的には未認証になる。
+
+再読み込みしても Access は同じ cookie を通すだけなので直らない。**ログアウトだけが
+脱出路**である。そのため `resolveAuth` は「token 無し」と「token はあるが拒否」を
+区別し、後者では `/api/me` が `stale: true` を、保護 API が `session_stale` を返す。
+UI はこの状態でログインではなくログアウトのリンクを出す。
+
 ## ルーティングと公開範囲
 
 `run_worker_first` で `/api/*` と `/raw/*` だけが Worker に到達し、それ以外は静的アセット

@@ -1,7 +1,13 @@
 import type { MeResponse } from '../../shared/types'
 import { fetchMe } from './api'
 
-const ANONYMOUS: MeResponse = { email: '', name: '', authenticated: false, dev: false }
+const ANONYMOUS: MeResponse = {
+  email: '',
+  name: '',
+  authenticated: false,
+  stale: false,
+  dev: false,
+}
 
 const state = $state<{ me: MeResponse; loaded: boolean }>({ me: ANONYMOUS, loaded: false })
 

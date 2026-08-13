@@ -23,6 +23,7 @@ app.get('/api/me', (c) => {
     email: identity?.email ?? '',
     name: identity?.name ?? '',
     authenticated: identity !== null,
+    stale: c.get('authStale'),
     dev: isDevMode,
   }
   return c.json(body)
@@ -125,7 +126,11 @@ app.onError((error, c) => {
 
   if (status >= 500) console.error(error)
 
-  return c.json({ error: statusToCode(status), message }, status)
+  // A refused token needs its own code: the client's way out is to sign out,
+  // not to sign in, and only the middleware knows which of the two it was.
+  const code = status === 401 && c.get('authStale') ? 'session_stale' : statusToCode(status)
+
+  return c.json({ error: code, message }, status)
 })
 
 function statusToCode(status: number): string {

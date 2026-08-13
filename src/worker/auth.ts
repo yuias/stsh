@@ -55,13 +55,28 @@ function isAllowed(email: string, allowedEmails: string): boolean {
 }
 
 /**
- * Resolves the caller's identity, or null when the request carries no valid
- * Access token. Never throws for anonymous requests — route handlers decide
- * whether anonymous access is acceptable.
+ * A request with no token at all is simply anonymous. One that carries a token
+ * we refuse is not: Access has already let it through, so the caller is stuck
+ * until the cookie is cleared. Telling the two apart is what lets the UI offer
+ * signing out rather than a sign-in link that would loop straight back here.
  */
-export async function resolveIdentity(request: Request, env: AppEnv): Promise<Identity | null> {
+export interface AuthState {
+  identity: Identity | null
+  stale: boolean
+}
+
+const ANONYMOUS: AuthState = { identity: null, stale: false }
+const STALE: AuthState = { identity: null, stale: true }
+
+/**
+ * Resolves the caller's identity. Never throws for anonymous requests — route
+ * handlers decide whether anonymous access is acceptable.
+ */
+export async function resolveAuth(request: Request, env: AppEnv): Promise<AuthState> {
   if (IS_DEV) {
-    return request.headers.get(DEV_ANONYMOUS_HEADER) ? null : DEV_IDENTITY
+    return request.headers.get(DEV_ANONYMOUS_HEADER)
+      ? ANONYMOUS
+      : { identity: DEV_IDENTITY, stale: false }
   }
 
   const teamDomain = env.ACCESS_TEAM_DOMAIN?.replace(/\/+$/, '')
@@ -75,7 +90,7 @@ export async function resolveIdentity(request: Request, env: AppEnv): Promise<Id
   }
 
   const token = readAccessToken(request)
-  if (!token) return null
+  if (!token) return ANONYMOUS
 
   try {
     const { payload } = await jwtVerify(token, getJwks(teamDomain), {
@@ -83,26 +98,34 @@ export async function resolveIdentity(request: Request, env: AppEnv): Promise<Id
       audience,
     })
 
+    // A token that verifies but names nobody we allow is no more usable than
+    // one that fails outright, and it clears the same way.
     const email = typeof payload.email === 'string' ? payload.email : ''
-    if (!email || !isAllowed(email, env.ALLOWED_EMAILS ?? '')) return null
+    if (!email || !isAllowed(email, env.ALLOWED_EMAILS ?? '')) return STALE
 
     const name = typeof payload.name === 'string' && payload.name ? payload.name : email
-    return { email, name }
+    return { identity: { email, name }, stale: false }
   } catch {
-    return null
+    return STALE
   }
 }
 
 /** Attaches the resolved identity to the context without enforcing it. */
 export const withIdentity: MiddlewareHandler<HonoEnv> = async (c, next) => {
-  c.set('identity', await resolveIdentity(c.req.raw, c.env))
+  const auth = await resolveAuth(c.req.raw, c.env)
+  c.set('identity', auth.identity)
+  c.set('authStale', auth.stale)
   await next()
 }
 
 /** Rejects anonymous requests. Must run after `withIdentity`. */
 export const requireIdentity: MiddlewareHandler<HonoEnv> = async (c, next) => {
   if (!c.get('identity')) {
-    throw new HTTPException(401, { message: 'Cloudflare Access authentication required' })
+    throw new HTTPException(401, {
+      message: c.get('authStale')
+        ? 'the Access token was refused; sign out and sign in again'
+        : 'Cloudflare Access authentication required',
+    })
   }
   await next()
 }

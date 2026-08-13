@@ -58,6 +58,13 @@ export interface MeResponse {
   email: string
   name: string
   authenticated: boolean
+  /**
+   * True when the browser holds an Access token the Worker will not accept.
+   * Access can keep routing such a request through — a rotated signing key or a
+   * renamed team domain leaves a cookie that only Access still likes — so
+   * reloading never clears it and signing out is the only way forward.
+   */
+  stale: boolean
   /** True while running locally, where Access is not in front of the app. */
   dev: boolean
 }
