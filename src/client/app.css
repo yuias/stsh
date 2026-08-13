@@ -77,7 +77,8 @@ a {
   flex: 1;
 }
 
-.app-header .identity {
+.app-header .identity,
+.app-header .auth-link {
   font-size: 0.82rem;
   color: var(--text-muted);
 }

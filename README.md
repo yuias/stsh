@@ -4,7 +4,8 @@
 
 1 つの stash が複数ファイルを持ち、閲覧画面では Shiki によるシンタックスハイライトと
 Markdown レンダリングを行う。ホスティングは Cloudflare Workers + D1、認証は
-Cloudflare Access に委譲する（アプリ自身はログイン UI を持たない）。
+Cloudflare Access に委譲する（アプリ自身は資格情報を一切扱わず、ログイン画面も
+Access のものを使う）。
 
 ## 技術構成
 
@@ -16,6 +17,7 @@ Cloudflare Access に委譲する（アプリ自身はログイン UI を持た�
 | Highlight        | Shiki（文法は言語ごとに遅延ロード）                       |
 | Markdown         | marked + DOMPurify                                        |
 | Auth             | Cloudflare Access の JWT (`Cf-Access-Jwt-Assertion`) 検証 |
+| Login methods    | Google OAuth / One-time PIN（Access 側で選択）            |
 | Package manager  | pnpm                                                      |
 
 Worker と静的アセットは 1 つの Worker にまとまっており、デプロイは `wrangler deploy` 一発。
@@ -67,6 +69,26 @@ migrations/     D1 のスキーマ
 
 保存済みの選択は `index.html` のインラインスクリプトが初回描画より前に適用する。
 バンドルの読み込みを待つと、OS 設定と逆のテーマが一瞬見えてしまうため。
+
+## ログイン方法
+
+認証は Access のログインページが担当し、アプリはそこへ誘導するだけである。
+アカウントに複数の IdP を有効にしておくと、ログインページに選択肢が並ぶ
+（[Google OAuth の設定](#5-ログイン方法-idp-を設定)を参照）。
+
+ヘッダーのリンクはどちらも Cloudflare がエッジで応答するもので、Worker には届かない。
+
+| 状態     | リンク   | 遷移先                  | 効果                                       |
+| -------- | -------- | ----------------------- | ------------------------------------------ |
+| 匿名     | Sign in  | `/`                     | 保護された `/` が Access のログインを起こす |
+| ログイン済 | Sign out | `/cdn-cgi/access/logout` | セッションを破棄する（ログイン方法の変更に使う） |
+
+Access は最後に成功した認証方法で identity を評価するため、PIN から Google へ
+切り替えるにはいったん Sign out する必要がある。ローカル開発では Access が
+前段にいない（どちらの URL も存在しない）ので、このリンクは出ない。
+
+どちらの方法で入っても Worker が見るのは JWT の `email` claim なので、
+`ALLOWED_EMAILS` や stash の所有者はログイン方法に依存しない。
 
 ## ルーティングと公開範囲
 
@@ -165,7 +187,36 @@ pnpm deploy
 
 この時点では Access 変数が未設定なので、API は 500 を返す（意図的に fail closed）。
 
-### 5. Cloudflare Access を設定
+### 5. ログイン方法 (IdP) を設定
+
+ログイン方法はアカウント単位の設定で、アプリケーションより先に用意しておく。
+Zero Trust ダッシュボード > **Integrations** > **Identity providers** で追加する。
+
+One-time PIN だけでも運用できるが、毎回メールを開くことになる。Google OAuth を
+足しておくと、ログインページに両方が並んで好きな方を選べる（PIN は他人を一時的に
+招く用途にも残しておくと便利）。
+
+Google を追加するには、先に Google Cloud console 側で OAuth クライアントを作る。
+
+1. プロジェクトを作り、**APIs & Services** > **Credentials** > **Configure Consent Screen**
+   で audience は **External**、アプリ名とサポート用メールアドレスを入れる。
+2. **Create OAuth client** で application type に **Web application** を選ぶ。
+3. Authorized JavaScript origins: `https://<team-name>.cloudflareaccess.com`
+4. Authorized redirect URIs: `https://<team-name>.cloudflareaccess.com/cdn-cgi/access/callback`
+5. 発行された **Client ID** と **Client Secret** を控える。
+
+Zero Trust に戻り、**Add new identity provider** > **Google** で控えた 2 つを入れて保存。
+入力欄の **App ID** が Client ID にあたる。保存後の **Test** で疎通を確認できる。
+
+> アプリケーション側の **Login methods** は、既定でアカウントのすべての IdP を
+> 受け付ける。ここを 1 つに絞ったうえで **Instant Auth**
+> (`auto_redirect_to_identity`) を有効にすると選択画面が飛ばされるので、
+> 選ばせたいなら既定のままにしておくこと。
+
+Google アカウントのメールアドレスが One-time PIN で使うものと同じであれば、
+どちらで入っても Worker から見える identity は変わらない。
+
+### 6. Cloudflare Access を設定
 
 Zero Trust ダッシュボード > Access > Applications で **Self-hosted** アプリケーションを作る。
 
@@ -189,7 +240,7 @@ Zero Trust ダッシュボード > Access > Applications で **Self-hosted** ア
 公開リンクを一切使わない運用なら、この Bypass アプリは作らなくてよい。その場合
 `visibility` は単なるラベルとして残る。
 
-### 6. Access の値を secret として登録
+### 7. Access の値を secret として登録
 
 保護アプリケーションの **Overview** から AUD タグを、Zero Trust の設定からチーム名を取得する。
 
@@ -212,7 +263,7 @@ pnpm deploy
 > plaintext の `vars` は `wrangler deploy` のたびに config の内容で上書きされるが、
 > secret はデプロイでは削除されない。ダッシュボードで値を管理するのは避けること。
 
-### 7. 動作確認
+### 8. 動作確認
 
 ```sh
 curl -s https://stsh.example.com/api/me      # ブラウザでログイン後、Cookie 付きで

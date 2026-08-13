@@ -14,6 +14,8 @@ export const ja: Messages = {
     theme: 'テーマ',
     themeLight: 'ライト',
     themeDark: 'ダーク',
+    signIn: 'ログイン',
+    signOut: 'ログアウト',
   },
   common: {
     loading: '読み込み中…',

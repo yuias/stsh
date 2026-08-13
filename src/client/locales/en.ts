@@ -22,6 +22,8 @@ export const en = {
     theme: 'Theme',
     themeLight: 'Light',
     themeDark: 'Dark',
+    signIn: 'Sign in',
+    signOut: 'Sign out',
   },
   common: {
     loading: 'Loading…',

@@ -12,6 +12,14 @@
   const route = $derived(currentRoute())
   const me = $derived(session())
   const m = $derived(messages())
+
+  /**
+   * Cloudflare Access answers both of these itself; neither reaches the Worker,
+   * and both must be plain navigations rather than SPA routing. Signing out is
+   * also how a user switches between the available login methods.
+   */
+  const SIGN_IN_URL = '/'
+  const SIGN_OUT_URL = '/cdn-cgi/access/logout'
 </script>
 
 <div class="app">
@@ -31,6 +39,14 @@
           {m.nav.readOnly}
         {/if}
       </span>
+      <!-- Access is not in front of the Worker in dev, so neither URL exists. -->
+      {#if !me.me.dev}
+        {#if me.me.authenticated}
+          <a class="auth-link" href={SIGN_OUT_URL}>{m.nav.signOut}</a>
+        {:else}
+          <a class="auth-link" href={SIGN_IN_URL}>{m.nav.signIn}</a>
+        {/if}
+      {/if}
     {/if}
   </header>
 
