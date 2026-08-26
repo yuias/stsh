@@ -18,6 +18,7 @@ Access のものを使う）。
 | Markdown         | marked + DOMPurify                                        |
 | Auth             | Cloudflare Access の JWT (`Cf-Access-Jwt-Assertion`) 検証 |
 | Login methods    | Google OAuth / One-time PIN（Access 側で選択）            |
+| Backup           | Cron Trigger → D1 export API → R2（週次・8 週保持）       |
 | Package manager  | pnpm                                                      |
 
 Worker と静的アセットは 1 つの Worker にまとまっており、デプロイは `wrangler deploy` 一発。
@@ -28,7 +29,7 @@ Worker と静的アセットは 1 つの Worker にまとまっており、デ�
 ```
 src/
 ├── shared/     Worker と Client で共有する型・言語判定
-├── worker/     Hono アプリ（API・raw 配信・Access JWT 検証）
+├── worker/     Hono アプリ（API・raw 配信・Access JWT 検証・週次バックアップ）
 └── client/     Svelte SPA
     └── locales/  UI の文言カタログ
 migrations/     D1 のスキーマ
@@ -280,6 +281,76 @@ pnpm deploy
 ```sh
 curl -s https://stsh.example.com/api/me      # ブラウザでログイン後、Cookie 付きで
 ```
+
+## バックアップ
+
+Cron Trigger で `scheduled` ハンドラを起こし、D1 の export API をポーリングして
+署名付き URL を取得し、その中身を R2 に `backups/YYYY-MM-DD.sql` として保存する。
+署名付き URL の有効期限は 1 時間なので、取得したその場で使い切る。
+
+### 設定
+
+| 項目     | 場所                                        | 既定値                        |
+| -------- | ------------------------------------------- | ----------------------------- |
+| 実行間隔 | `wrangler.jsonc` の `triggers.crons`        | `0 21 * * 0`（JST 月曜 06:00）|
+| 保持日数 | `wrangler.jsonc` の `vars.BACKUP_RETENTION_DAYS` | `56`（8 週）             |
+
+どちらもデプロイ時の設定なので、変更したら `pnpm deploy` が要る。
+
+Cron Trigger は UTC で評価される。JST の時刻をそのまま書くと**曜日が 1 日ずれる**点に
+注意する。JST 月曜 06:00 は UTC 日曜 21:00 にあたり、曜日フィールドは `0`（日曜）になる。
+
+保持期限はオブジェクトを書き込む時点で `expiresAt` として custom metadata に焼き込み、
+掃除はその値だけを見る。したがって `BACKUP_RETENTION_DAYS` の変更は既存のバックアップに
+遡って効かない。短くしても既にあるものは消えないし、伸ばしても延命はされない。
+
+### セットアップ
+
+```sh
+pnpm exec wrangler r2 bucket create stsh-backups
+pnpm exec wrangler secret put D1_EXPORT_API_TOKEN   # D1:read 権限を持つ API トークン
+pnpm deploy
+```
+
+`CLOUDFLARE_ACCOUNT_ID` と `D1_DATABASE_ID` は `vars` に置いてある。export API は
+HTTP 越しに叩くもので `DB` バインディングからは辿れないため、`d1_databases` に書いた
+id をここでも繰り返す必要がある。
+
+### 失敗したときに気づく方法
+
+Cloudflare には Worker や Cron Trigger の失敗を知らせる通知が存在しない。
+**何も足さなければ失敗は無音**になる。手掛かりは次の 2 つ。
+
+- ダッシュボードの **Cron Events**（直近 100 回の実行履歴）
+- **Workers Logs**（7 日保持）。`backup failed` で引ける
+
+プッシュで気づきたいなら、ハンドラの末尾から Healthchecks.io のような dead man's
+switch に ping を打つのが素直。cron がそもそも発火しなかったケースまで拾えるのは
+この方法だけになる。
+
+### 手元での確認
+
+`wrangler dev` は `scheduled` を叩くためのルートを生やす。
+
+```sh
+curl "http://localhost:8787/cdn-cgi/handler/scheduled"
+```
+
+ローカル実行は `dev-backups/` プレフィックスに書き込むので、本番のバックアップと
+混ざることはない。ただし export API が見に行くのはリモートの本番 DB なので、
+`.dev.vars` の `D1_EXPORT_API_TOKEN` は既定で空にしてある。
+
+### 復元
+
+```sh
+pnpm exec wrangler r2 object get stsh-backups/backups/2026-08-31.sql --remote --file=restore.sql
+pnpm exec wrangler d1 execute stsh-db --remote --file=restore.sql
+```
+
+これとは別に、D1 には Time Travel が常時有効になっている（有料プラン 30 日、
+無料プラン 7 日）。`wrangler d1 time-travel restore` で任意の時点に巻き戻せるが、
+復元は破壊的で、コピーを作ることも外部にデータを残すこともできない。R2 への
+バックアップとは守備範囲が違うので、併用するものと考える。
 
 ## 制限
 

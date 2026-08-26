@@ -2,8 +2,9 @@ import { Hono, type Context } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { ListResponse, MeResponse, Visibility } from '../shared/types'
 import { isDevMode, requireIdentity, withIdentity } from './auth'
+import { runBackup } from './backup'
 import { isValidStashId } from './id'
-import type { HonoEnv } from './types'
+import type { AppEnv, HonoEnv } from './types'
 import { createStash, deleteStash, getStash, getStashFile, listStashes, updateStash } from './repo'
 import { normalizeStashInput } from './validate'
 
@@ -154,4 +155,15 @@ async function readJson(request: Request): Promise<unknown> {
   }
 }
 
-export default app
+const scheduled: ExportedHandlerScheduledHandler<AppEnv> = async (controller, env) => {
+  try {
+    await runBackup(env, controller.scheduledTime)
+  } catch (error) {
+    // Nothing notifies on a failed Cron Trigger, so the log and the errored
+    // invocation in Cron Events are the only traces a failure leaves behind.
+    console.error('backup failed', error)
+    throw error
+  }
+}
+
+export default { fetch: app.fetch, scheduled } satisfies ExportedHandler<AppEnv>

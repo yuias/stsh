@@ -4,3 +4,8 @@
 ACCESS_TEAM_DOMAIN="https://example.cloudflareaccess.com"
 ACCESS_POLICY_AUD="dummy-aud-tag"
 ALLOWED_EMAILS="dev@localhost"
+
+# Backups run against the real Cloudflare API even locally, so this one is not a
+# dummy: leave it empty unless you actually want `wrangler dev` to export the
+# remote database. A token with D1:read on the account is what it expects.
+D1_EXPORT_API_TOKEN=""
