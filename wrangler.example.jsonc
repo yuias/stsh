@@ -25,8 +25,10 @@
   },
   // Weekly backup, JST 06:00 on Monday. Cron Triggers are evaluated in UTC, so
   // the weekday here is the day before the one the schedule reads as locally.
+  // Cloudflare numbers weekdays 1 = Sunday through 7 = Saturday, which is off
+  // by one from most cron systems; the abbreviation sidesteps the ambiguity.
   "triggers": {
-    "crons": ["0 21 * * 0"]
+    "crons": ["0 21 * * SUN"]
   },
   "r2_buckets": [
     {

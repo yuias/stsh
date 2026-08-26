@@ -292,13 +292,17 @@ Cron Trigger で `scheduled` ハンドラを起こし、D1 の export API をポ
 
 | 項目     | 場所                                        | 既定値                        |
 | -------- | ------------------------------------------- | ----------------------------- |
-| 実行間隔 | `wrangler.jsonc` の `triggers.crons`        | `0 21 * * 0`（JST 月曜 06:00）|
+| 実行間隔 | `wrangler.jsonc` の `triggers.crons`        | `0 21 * * SUN`（JST 月曜 06:00）|
 | 保持日数 | `wrangler.jsonc` の `vars.BACKUP_RETENTION_DAYS` | `56`（8 週）             |
 
 どちらもデプロイ時の設定なので、変更したら `pnpm deploy` が要る。
 
 Cron Trigger は UTC で評価される。JST の時刻をそのまま書くと**曜日が 1 日ずれる**点に
-注意する。JST 月曜 06:00 は UTC 日曜 21:00 にあたり、曜日フィールドは `0`（日曜）になる。
+注意する。JST 月曜 06:00 は UTC 日曜 21:00 にあたる。
+
+さらに Cloudflare の曜日は **1 = 日曜 〜 7 = 土曜**で、`0` を日曜とする一般的な cron とは
+1 つずれている。`0` を書くと `invalid cron string [code: 10100]` でデプロイが失敗する。
+数字を避けて `SUN` のような略称で書くのが安全。
 
 保持期限はオブジェクトを書き込む時点で `expiresAt` として custom metadata に焼き込み、
 掃除はその値だけを見る。したがって `BACKUP_RETENTION_DAYS` の変更は既存のバックアップに
@@ -308,9 +312,12 @@ Cron Trigger は UTC で評価される。JST の時刻をそのまま書くと*
 
 ```sh
 pnpm exec wrangler r2 bucket create stsh-backups
-pnpm exec wrangler secret put D1_EXPORT_API_TOKEN   # D1:read 権限を持つ API トークン
+pnpm exec wrangler secret put D1_EXPORT_API_TOKEN   # D1 : Edit 権限を持つ API トークン
 pnpm deploy
 ```
+
+export はダンプを生成する POST なので、トークンには読み取りではなく `D1 : Edit` が要る。
+`D1 : Read` だけのトークンだと `POST .../export` が 401 `Authentication error` で落ちる。
 
 `CLOUDFLARE_ACCOUNT_ID` と `D1_DATABASE_ID` は `vars` に置いてある。export API は
 HTTP 越しに叩くもので `DB` バインディングからは辿れないため、`d1_databases` に書いた

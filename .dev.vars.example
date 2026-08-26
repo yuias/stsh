@@ -7,5 +7,6 @@ ALLOWED_EMAILS="dev@localhost"
 
 # Backups run against the real Cloudflare API even locally, so this one is not a
 # dummy: leave it empty unless you actually want `wrangler dev` to export the
-# remote database. A token with D1:read on the account is what it expects.
+# remote database. Export is a POST that builds a dump, so the token needs
+# `D1 : Edit` on the account — `D1 : Read` is answered with a 401.
 D1_EXPORT_API_TOKEN=""
