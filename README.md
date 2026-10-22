@@ -367,3 +367,7 @@ pnpm exec wrangler d1 execute stsh-db --remote --file=restore.sql
   クエリは 40 文字で切り詰められる。
 - 閲覧画面では 200 KB を超えるファイルはハイライトせず素の `<pre>` で表示し、
   2 MB を超える分は表示を打ち切る（全文は Raw から取得する）。
+
+## ライセンス
+
+[MIT License](LICENSE)
