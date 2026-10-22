@@ -39,7 +39,8 @@
         return await fetchStash(stashId)
       } catch (cause) {
         // Fall through to the public endpoint only when the session is gone.
-        if (!(cause instanceof ApiError) || cause.status !== 401) throw cause
+        if (!(cause instanceof ApiError)) throw cause
+        if (cause.code !== 'session_expired' && cause.status !== 401) throw cause
       }
     }
 

@@ -85,6 +85,15 @@ export const en = {
     message: 'That page does not exist.',
     back: 'Back to the list',
   },
+  sessionDialog: {
+    expiredTitle: 'Session expired',
+    expiredBody: 'Sign in again to keep working. Signing in reloads this page, so copy out any edits you have not saved yet.',
+    staleTitle: 'Session not accepted',
+    staleBody: 'Sign out, then sign in again to keep working. Copy out any edits you have not saved yet first.',
+    signIn: 'Sign in again',
+    signOut: 'Sign out',
+    later: 'Not now',
+  },
   errors: {
     network: 'Could not reach the server. Try signing in again.',
     /** Access bounced the request to its login page: reloading starts a login. */

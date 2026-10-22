@@ -1,5 +1,7 @@
 import type { MeResponse } from '../../shared/types'
-import { fetchMe } from './api'
+import { type SessionLoss, fetchMe, onSessionLost } from './api'
+
+export type { SessionLoss }
 
 const ANONYMOUS: MeResponse = {
   email: '',
@@ -9,7 +11,17 @@ const ANONYMOUS: MeResponse = {
   dev: false,
 }
 
+/**
+ * Cloudflare Access answers both of these itself; neither reaches the Worker,
+ * and both must be plain navigations rather than SPA routing. Signing out is
+ * also how a user switches between the available login methods.
+ */
+export const SIGN_IN_URL = '/'
+export const SIGN_OUT_URL = '/cdn-cgi/access/logout'
+
 const state = $state<{ me: MeResponse; loaded: boolean }>({ me: ANONYMOUS, loaded: false })
+
+const loss = $state<{ kind: SessionLoss | null }>({ kind: null })
 
 /**
  * Resolves the current identity once per page load. On Access-bypassed pages
@@ -19,6 +31,7 @@ const state = $state<{ me: MeResponse; loaded: boolean }>({ me: ANONYMOUS, loade
 async function load(): Promise<void> {
   try {
     state.me = await fetchMe()
+    if (state.me.stale) reportSessionLost('stale')
   } catch {
     state.me = ANONYMOUS
   } finally {
@@ -31,4 +44,25 @@ export const sessionReady: Promise<void> = load()
 
 export function session(): { me: MeResponse; loaded: boolean } {
   return state
+}
+
+export function sessionLoss(): SessionLoss | null {
+  return loss.kind
+}
+
+/**
+ * Called for every request that fails for lack of a usable session. An
+ * anonymous reader never had a session to lose: their `/api/me` probe is
+ * redirected the same way an expired one is, and must not raise the prompt.
+ */
+export function reportSessionLost(kind: SessionLoss): void {
+  if (kind === 'expired' && !state.me.authenticated) return
+  loss.kind = kind
+}
+
+onSessionLost(reportSessionLost)
+
+/** Hides the prompt until the next failing request reports the loss again. */
+export function dismissSessionLoss(): void {
+  loss.kind = null
 }

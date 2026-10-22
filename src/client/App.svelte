@@ -3,7 +3,8 @@
   import ThemeSwitcher from './components/ThemeSwitcher.svelte'
   import { messages } from './lib/i18n.svelte'
   import { currentRoute, link } from './lib/router.svelte'
-  import { session } from './lib/session.svelte'
+  import SessionLostDialog from './components/SessionLostDialog.svelte'
+  import { SIGN_IN_URL, SIGN_OUT_URL, session, sessionLoss } from './lib/session.svelte'
   import EditorPage from './routes/EditorPage.svelte'
   import ListPage from './routes/ListPage.svelte'
   import NotFoundPage from './routes/NotFoundPage.svelte'
@@ -12,14 +13,7 @@
   const route = $derived(currentRoute())
   const me = $derived(session())
   const m = $derived(messages())
-
-  /**
-   * Cloudflare Access answers both of these itself; neither reaches the Worker,
-   * and both must be plain navigations rather than SPA routing. Signing out is
-   * also how a user switches between the available login methods.
-   */
-  const SIGN_IN_URL = '/'
-  const SIGN_OUT_URL = '/cdn-cgi/access/logout'
+  const loss = $derived(sessionLoss())
 </script>
 
 <div class="app">
@@ -72,3 +66,7 @@
     {/if}
   </main>
 </div>
+
+{#if loss}
+  <SessionLostDialog kind={loss} />
+{/if}

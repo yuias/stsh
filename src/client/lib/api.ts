@@ -12,35 +12,64 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Why the session stopped working, which decides the way out: an expired
+ * session signs in again, a refused token has to sign out first (Access
+ * would otherwise wave the same token straight back in).
+ */
+export type SessionLoss = 'expired' | 'stale'
+
+let sessionLostListener: ((kind: SessionLoss) => void) | null = null
+
+/**
+ * Registered by the session store rather than imported here, so this module
+ * stays free of rune state.
+ */
+export function onSessionLost(listener: (kind: SessionLoss) => void): void {
+  sessionLostListener = listener
+}
+
+function reportIfSessionLost(error: ApiError): ApiError {
+  if (error.code === 'session_stale') sessionLostListener?.('stale')
+  else if (error.code === 'session_expired' || error.status === 401) sessionLostListener?.('expired')
+  return error
+}
+
+/**
+ * Access answers an expired session with a redirect to its login page on
+ * another origin. Followed, that redirect fails CORS and looks exactly like
+ * being offline; held back with `redirect: 'manual'` it is recognisable. No
+ * API route redirects on its own, so any redirect here is Access.
+ */
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
   try {
     response = await fetch(path, {
       ...init,
       headers: { accept: 'application/json', ...init?.headers },
+      redirect: 'manual',
     })
   } catch {
-    // A cross-origin redirect to the Cloudflare Access login page surfaces here.
     throw new ApiError(0, 'network', 'the server could not be reached')
+  }
+  if (response.type === 'opaqueredirect') {
+    throw reportIfSessionLost(new ApiError(0, 'session_expired', 'the session has expired'))
   }
 
   if (response.status === 204) return undefined as T
 
   const isJson = response.headers.get('content-type')?.includes('application/json') ?? false
   if (!isJson) {
-    // Access answers an expired session with a redirect to its login page.
-    throw new ApiError(
-      response.status,
-      response.redirected ? 'session_expired' : 'unexpected_response',
-      `expected JSON, got ${response.status}`,
-    )
+    throw new ApiError(response.status, 'unexpected_response', `expected JSON, got ${response.status}`)
   }
 
   const body = (await response.json()) as unknown
 
   if (!response.ok) {
     const error = body as { error?: string; message?: string }
-    throw new ApiError(response.status, error.error ?? 'error', error.message ?? 'the request failed')
+    throw reportIfSessionLost(
+      new ApiError(response.status, error.error ?? 'error', error.message ?? 'the request failed'),
+    )
   }
 
   return body as T
