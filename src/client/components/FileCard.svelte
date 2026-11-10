@@ -56,6 +56,8 @@
 <style>
   .file {
     overflow: hidden;
+    /* Keeps the card header clear of the sticky app header when jumped to. */
+    scroll-margin-top: 64px;
   }
 
   header {

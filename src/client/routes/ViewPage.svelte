@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte'
   import type { Messages } from '../locales/en'
   import type { Stash } from '../../shared/types'
   import FileCard from '../components/FileCard.svelte'
@@ -53,8 +54,15 @@
     failure = null
 
     loadStash(id)
-      .then((result) => {
-        if (!cancelled) stash = result
+      .then(async (result) => {
+        if (cancelled) return
+        stash = result
+        // The browser looks for the fragment target on page load, before the
+        // file cards exist, so a link like `#file-<name>` has to be followed
+        // once they are rendered.
+        if (!window.location.hash) return
+        await tick()
+        document.getElementById(window.location.hash.slice(1))?.scrollIntoView()
       })
       .catch((cause: unknown) => {
         if (cancelled) return
